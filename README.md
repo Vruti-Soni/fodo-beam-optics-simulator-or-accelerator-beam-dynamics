@@ -47,7 +47,7 @@ $$|\text{Tr}(M_{\text{cell}})| < 2$$
 
 * **Frontend / 3D Graphics:** HTML5, JavaScript (ES6+), Three.js (WebGL), Tailwind CSS
 * **Numerical Analysis & Prototyping:** Python, NumPy, Matplotlib, `ipywidgets` (Google Colab)
-* **Deployment & Hosting:** GitHub Pages
+* **Deployment & Hosting:** GitHub Pages 
 
 ---
 
