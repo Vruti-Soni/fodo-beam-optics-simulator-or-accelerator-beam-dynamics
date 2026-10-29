@@ -1,6 +1,6 @@
 # fodo-beam-optics-simulator-or-accelerator-beam-dynamics
+Markdown
 # ⚛️ 3D Interactive Particle Beam Accelerator & FODO Optics Simulator
-
 An interactive, web-based 3D physics simulation and numerical solver that models charged particle beam transport through a periodic **FODO (Focusing-Defocusing)** magnet lattice in circular synchrotrons and beamlines.
 
 ---
@@ -47,12 +47,10 @@ $$|\text{Tr}(M_{\text{cell}})| < 2$$
 
 * **Frontend / 3D Graphics:** HTML5, JavaScript (ES6+), Three.js (WebGL), Tailwind CSS
 * **Numerical Analysis & Prototyping:** Python, NumPy, Matplotlib, `ipywidgets` (Google Colab)
-* **Deployment & Hosting:** GitHub Pages 
+* **Deployment & Hosting:** GitHub Pages
 
 ---
 
 Result(https://vruti-soni.github.io/fodo-beam-optics-simulator-or-accelerator-beam-dynamics/)
 
-1. Clone the repository:
-   ```bash
-   git clone [https://github.com/YOUR_USERNAME/YOUR_REPOSITORY_NAME.git](https://github.com/YOUR_USERNAME/YOUR_REPOSITORY_NAME.git)
+## 🚀 How to Run Locally
