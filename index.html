@@ -1,0 +1,1043 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>3D Particle Accelerator Beamline Simulator | FODO Lattice</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        cern: {
+                            blue: '#00539C',
+                            cyan: '#00d2ff',
+                            red: '#ff4b4b',
+                            dark: '#0b0f19',
+                            card: '#131b2e',
+                            border: '#1f2d4d'
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+    <!-- Three.js Library -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <!-- OrbitControls for Three.js -->
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+    <!-- Font Awesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Chart.js for Phase Space / Analytics -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        body {
+            font-family: 'Inter', system-ui, -apple-system, sans-serif;
+            background-color: #0b0f19;
+            color: #e2e8f0;
+            overflow: hidden;
+        }
+        canvas {
+            outline: none;
+        }
+        /* Custom scrollbars */
+        ::-webkit-scrollbar {
+            width: 6px;
+            height: 6px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #0b0f19;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #1f2d4d;
+            border-radius: 3px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #00d2ff;
+        }
+        .glass-panel {
+            background: rgba(19, 27, 46, 0.85);
+            backdrop-filter: blur(12px);
+            border: 1px solid rgba(31, 45, 77, 0.8);
+        }
+        .glow-box-cyan {
+            box-shadow: 0 0 15px rgba(0, 210, 255, 0.25);
+        }
+        .glow-box-red {
+            box-shadow: 0 0 15px rgba(255, 75, 75, 0.25);
+        }
+    </style>
+</head>
+<body class="h-screen w-screen flex flex-col md:flex-row overflow-hidden select-none">
+
+    <!-- LEFT / MOBILE TOP PANEL: CONTROLS & DASHBOARD -->
+    <div id="sidebar" class="w-full md:w-96 h-auto md:h-full flex flex-col z-20 glass-panel border-r border-cern-border flex-shrink-0 overflow-y-auto">
+        <!-- Header -->
+        <div class="p-4 border-b border-cern-border flex items-center justify-between">
+            <div class="flex items-center space-x-3">
+                <div class="p-2 bg-blue-600/20 rounded-lg border border-blue-500/40 text-cern-cyan">
+                    <i class="fa-solid fa-atom text-xl animate-spin-slow"></i>
+                </div>
+                <div>
+                    <h1 class="font-bold text-base text-white leading-tight">FODO Lattice 3D</h1>
+                    <p class="text-xs text-gray-400">Accelerator Optics & Beam Dynamics</p>
+                </div>
+            </div>
+            <span class="text-xs bg-blue-900/40 text-blue-300 px-2 py-1 rounded border border-blue-700/50 font-mono">CERN Open Physics</span>
+        </div>
+
+        <!-- Live Metrics Banner -->
+        <div class="p-4 border-b border-cern-border bg-black/30">
+            <div class="flex items-center justify-between mb-2">
+                <span class="text-xs font-medium text-gray-400 uppercase tracking-wider">Cell Stability Status</span>
+                <span id="stability-badge" class="px-2.5 py-0.5 text-xs font-bold rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/40 flex items-center gap-1.5">
+                    <span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+                    STABLE
+                </span>
+            </div>
+            
+            <div class="grid grid-cols-2 gap-2 mt-3">
+                <div class="bg-cern-dark/80 p-2.5 rounded-lg border border-cern-border">
+                    <div class="text-[10px] text-gray-400 uppercase">Matrix Trace Sp(M)</div>
+                    <div id="matrix-trace-val" class="text-lg font-mono font-bold text-cern-cyan">1.250</div>
+                    <div class="text-[9px] text-gray-500">Condition: |Tr| &lt; 2.0</div>
+                </div>
+                <div class="bg-cern-dark/80 p-2.5 rounded-lg border border-cern-border">
+                    <div class="text-[10px] text-gray-400 uppercase">Betatron Phase Advance</div>
+                    <div id="phase-advance-val" class="text-lg font-mono font-bold text-purple-400">51.3°</div>
+                    <div class="text-[9px] text-gray-500">&mu; = arccos(Tr / 2)</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Controls Form -->
+        <div class="p-4 space-y-5 flex-1">
+            
+            <!-- Parameter Group 1: Magnet Optics -->
+            <div class="space-y-3">
+                <div class="flex justify-between items-center text-xs font-semibold text-gray-300 uppercase tracking-wider border-b border-gray-800 pb-1">
+                    <span><i class="fa-solid fa-magnet text-cern-cyan mr-1.5"></i> Magnet Optics</span>
+                </div>
+
+                <!-- Focal Length (f) -->
+                <div>
+                    <div class="flex justify-between text-xs mb-1">
+                        <label for="slider-f" class="text-gray-300">Quad Focal Length (f)</label>
+                        <span id="val-f" class="font-mono text-cern-cyan font-semibold">2.50 m</span>
+                    </div>
+                    <input id="slider-f" type="range" min="0.5" max="5.0" step="0.05" value="2.5" class="w-full h-1.5 bg-gray-700 rounded-lg appearance-none cursor-pointer accent-cern-cyan">
+                    <div class="flex justify-between text-[10px] text-gray-500 mt-0.5">
+                        <span>High Focusing (0.5m)</span>
+                        <span>Weak (5.0m)</span>
+                    </div>
+                </div>
+
+                <!-- Drift Length (L) -->
+                <div>
+                    <div class="flex justify-between text-xs mb-1">
+                        <label for="slider-L" class="text-gray-300">Drift Section Length (L)</label>
+                        <span id="val-L" class="font-mono text-cern-cyan font-semibold">1.20 m</span>
+                    </div>
+                    <input id="slider-L" type="range" min="0.3" max="3.0" step="0.05" value="1.2" class="w-full h-1.5 bg-gray-700 rounded-lg appearance-none cursor-pointer accent-cern-cyan">
+                    <div class="flex justify-between text-[10px] text-gray-500 mt-0.5">
+                        <span>Compact (0.3m)</span>
+                        <span>Extended (3.0m)</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Parameter Group 2: Beam Properties -->
+            <div class="space-y-3">
+                <div class="flex justify-between items-center text-xs font-semibold text-gray-300 uppercase tracking-wider border-b border-gray-800 pb-1">
+                    <span><i class="fa-solid fa-bolt text-amber-400 mr-1.5"></i> Beam Properties</span>
+                </div>
+
+                <!-- Beam Energy / Momentum -->
+                <div>
+                    <div class="flex justify-between text-xs mb-1">
+                        <label for="slider-p" class="text-gray-300">Beam Momentum Ratio (p/p₀)</label>
+                        <span id="val-p" class="font-mono text-amber-400 font-semibold">1.00</span>
+                    </div>
+                    <input id="slider-p" type="range" min="0.5" max="2.0" step="0.05" value="1.0" class="w-full h-1.5 bg-gray-700 rounded-lg appearance-none cursor-pointer accent-amber-400">
+                    <div class="flex justify-between text-[10px] text-gray-500 mt-0.5">
+                        <span>Low Rigidity (0.5)</span>
+                        <span>High Rigidity (2.0)</span>
+                    </div>
+                </div>
+
+                <!-- Beam Emittance / Enclosure -->
+                <div>
+                    <div class="flex justify-between text-xs mb-1">
+                        <label for="slider-emit" class="text-gray-300">Beam Emittance / Spread (&epsilon;)</label>
+                        <span id="val-emit" class="font-mono text-amber-400 font-semibold">12 &pi;&middot;mm&middot;mrad</span>
+                    </div>
+                    <input id="slider-emit" type="range" min="2" max="30" step="1" value="12" class="w-full h-1.5 bg-gray-700 rounded-lg appearance-none cursor-pointer accent-amber-400">
+                    <div class="flex justify-between text-[10px] text-gray-500 mt-0.5">
+                        <span>Narrow Ray</span>
+                        <span>Broad Envelope</span>
+                    </div>
+                </div>
+
+                <!-- Number of Simulated Rays -->
+                <div>
+                    <div class="flex justify-between text-xs mb-1">
+                        <label for="slider-rays" class="text-gray-300">Tracked Beam Rays</label>
+                        <span id="val-rays" class="font-mono text-gray-300 font-semibold">24</span>
+                    </div>
+                    <input id="slider-rays" type="range" min="4" max="64" step="4" value="24" class="w-full h-1.5 bg-gray-700 rounded-lg appearance-none cursor-pointer accent-gray-400">
+                </div>
+            </div>
+
+            <!-- View Settings & Toggles -->
+            <div class="space-y-3">
+                <div class="flex justify-between items-center text-xs font-semibold text-gray-300 uppercase tracking-wider border-b border-gray-800 pb-1">
+                    <span><i class="fa-solid fa-eye text-emerald-400 mr-1.5"></i> Visualization Elements</span>
+                </div>
+
+                <div class="grid grid-cols-2 gap-2 text-xs">
+                    <label class="flex items-center space-x-2 bg-cern-dark p-2 rounded cursor-pointer border border-cern-border hover:border-gray-600 transition">
+                        <input type="checkbox" id="chk-pipe" checked class="rounded border-gray-700 text-cern-cyan focus:ring-0">
+                        <span class="text-gray-300">Beam Tube</span>
+                    </label>
+                    <label class="flex items-center space-x-2 bg-cern-dark p-2 rounded cursor-pointer border border-cern-border hover:border-gray-600 transition">
+                        <input type="checkbox" id="chk-envelope" checked class="rounded border-gray-700 text-cern-cyan focus:ring-0">
+                        <span class="text-gray-300">Envelope Fit</span>
+                    </label>
+                    <label class="flex items-center space-x-2 bg-cern-dark p-2 rounded cursor-pointer border border-cern-border hover:border-gray-600 transition">
+                        <input type="checkbox" id="chk-quad-fields" checked class="rounded border-gray-700 text-cern-cyan focus:ring-0">
+                        <span class="text-gray-300">B-Field Vectors</span>
+                    </label>
+                    <label class="flex items-center space-x-2 bg-cern-dark p-2 rounded cursor-pointer border border-cern-border hover:border-gray-600 transition">
+                        <input type="checkbox" id="chk-anim" checked class="rounded border-gray-700 text-cern-cyan focus:ring-0">
+                        <span class="text-gray-300">Particle Pulse</span>
+                    </label>
+                </div>
+            </div>
+
+        </div>
+
+        <!-- Footer / Action Buttons -->
+        <div class="p-4 border-t border-cern-border bg-cern-dark/90 space-y-2">
+            <div class="flex space-x-2">
+                <button id="btn-play" class="flex-1 py-2 px-3 bg-cern-cyan/20 hover:bg-cern-cyan/30 text-cern-cyan border border-cern-cyan/50 rounded-lg text-xs font-semibold flex items-center justify-center space-x-1.5 transition">
+                    <i class="fa-solid fa-pause" id="play-icon"></i>
+                    <span id="play-text">Pause Animation</span>
+                </button>
+                <button id="btn-reset" class="py-2 px-3 bg-gray-800 hover:bg-gray-700 text-gray-300 border border-gray-700 rounded-lg text-xs font-semibold flex items-center justify-center transition">
+                    <i class="fa-solid fa-rotate-right"></i>
+                </button>
+            </div>
+            
+            <div class="text-[10px] text-gray-500 text-center">
+                Interactive 3D Beam Physics for CERN Portfolio
+            </div>
+        </div>
+    </div>
+
+    <!-- RIGHT MAIN AREA: 3D VIEWPORT & PHASE SPACE TOGGLES -->
+    <div class="flex-1 flex flex-col h-full relative overflow-hidden bg-cern-dark">
+        
+        <!-- TOP TOOLBAR OVERLAY -->
+        <div class="absolute top-4 left-4 right-4 z-10 flex flex-wrap items-center justify-between gap-3 pointer-events-none">
+            <!-- Left Controls: View Mode Tabs -->
+            <div class="flex bg-cern-card/90 backdrop-blur-md p-1 rounded-xl border border-cern-border shadow-lg pointer-events-auto">
+                <button id="tab-3d" class="px-3.5 py-1.5 rounded-lg text-xs font-semibold bg-cern-cyan/20 text-cern-cyan border border-cern-cyan/40 shadow-sm flex items-center space-x-1.5 transition">
+                    <i class="fa-solid fa-cube"></i>
+                    <span>3D Beamline</span>
+                </button>
+                <button id="tab-phase" class="px-3.5 py-1.5 rounded-lg text-xs font-semibold text-gray-400 hover:text-white flex items-center space-x-1.5 transition">
+                    <i class="fa-solid fa-chart-line"></i>
+                    <span>Phase Space (x, x')</span>
+                </button>
+                <button id="tab-matrix" class="px-3.5 py-1.5 rounded-lg text-xs font-semibold text-gray-400 hover:text-white flex items-center space-x-1.5 transition">
+                    <i class="fa-solid fa-square-root-variable"></i>
+                    <span>Transfer Matrix</span>
+                </button>
+            </div>
+
+            <!-- Right Controls: Camera Angle Presets -->
+            <div class="flex items-center space-x-2 bg-cern-card/90 backdrop-blur-md p-1.5 rounded-xl border border-cern-border shadow-lg pointer-events-auto text-xs">
+                <span class="text-gray-400 text-[11px] px-2 font-medium">Camera:</span>
+                <button id="cam-iso" class="px-2.5 py-1 bg-gray-800/80 hover:bg-gray-700 text-gray-200 rounded border border-gray-700">Perspective</button>
+                <button id="cam-side" class="px-2.5 py-1 bg-gray-800/80 hover:bg-gray-700 text-gray-200 rounded border border-gray-700">Side (x-z)</button>
+                <button id="cam-top" class="px-2.5 py-1 bg-gray-800/80 hover:bg-gray-700 text-gray-200 rounded border border-gray-700">Top (y-z)</button>
+                <button id="cam-front" class="px-2.5 py-1 bg-gray-800/80 hover:bg-gray-700 text-gray-200 rounded border border-gray-700">Front (x-y)</button>
+            </div>
+        </div>
+
+        <!-- 3D VIEWPORT CONTAINER -->
+        <div id="canvas-container" class="w-full h-full relative cursor-grab active:cursor-grabbing">
+            <!-- 3D Canvas dynamically injected here -->
+        </div>
+
+        <!-- OVERLAY MODAL 1: PHASE SPACE ANALYZER -->
+        <div id="phase-space-modal" class="absolute inset-x-4 top-20 bottom-8 z-20 bg-cern-card/95 backdrop-blur-md rounded-2xl border border-cern-border p-6 shadow-2xl flex flex-col hidden transition-all duration-300">
+            <div class="flex justify-between items-center mb-4 border-b border-cern-border pb-3">
+                <div class="flex items-center space-x-3">
+                    <i class="fa-solid fa-chart-line text-cern-cyan text-xl"></i>
+                    <div>
+                        <h2 class="text-base font-bold text-white">Transverse Phase Space Ellipse</h2>
+                        <p class="text-xs text-gray-400">Courant-Snyder (Twiss) Parameters (&alpha;, &beta;, &gamma;) and Particle Phase Space Distribution</p>
+                    </div>
+                </div>
+                <button id="close-phase-modal" class="text-gray-400 hover:text-white p-2 rounded-lg bg-gray-800/60">
+                    <i class="fa-solid fa-xmark text-lg"></i>
+                </button>
+            </div>
+
+            <div class="flex-1 grid grid-cols-1 lg:grid-cols-3 gap-6 min-h-0">
+                <div class="lg:col-span-2 relative bg-black/40 rounded-xl border border-cern-border p-3 flex flex-col">
+                    <canvas id="phaseSpaceChart" class="w-full flex-1"></canvas>
+                </div>
+
+                <div class="bg-cern-dark/80 rounded-xl border border-cern-border p-4 flex flex-col space-y-4 overflow-y-auto text-xs">
+                    <h3 class="font-bold text-gray-200 uppercase tracking-wider text-[11px]">Twiss / Courant-Snyder Optics</h3>
+                    
+                    <div class="space-y-2">
+                        <div class="p-2.5 bg-cern-card rounded-lg border border-cern-border flex justify-between items-center">
+                            <span class="text-gray-400">Beta Function (&beta;<sub>x</sub>)</span>
+                            <span id="twiss-beta" class="font-mono text-cern-cyan font-bold text-sm">2.14 m/rad</span>
+                        </div>
+                        <div class="p-2.5 bg-cern-card rounded-lg border border-cern-border flex justify-between items-center">
+                            <span class="text-gray-400">Alpha Function (&alpha;<sub>x</sub>)</span>
+                            <span id="twiss-alpha" class="font-mono text-purple-400 font-bold text-sm">-0.42</span>
+                        </div>
+                        <div class="p-2.5 bg-cern-card rounded-lg border border-cern-border flex justify-between items-center">
+                            <span class="text-gray-400">Gamma Function (&gamma;<sub>x</sub>)</span>
+                            <span id="twiss-gamma" class="font-mono text-amber-400 font-bold text-sm">0.55 rad/m</span>
+                        </div>
+                        <div class="p-2.5 bg-cern-card rounded-lg border border-cern-border flex justify-between items-center">
+                            <span class="text-gray-400">Emittance Area (&epsilon;)</span>
+                            <span id="twiss-emit" class="font-mono text-emerald-400 font-bold text-sm">12.0 &pi;&middot;mm&middot;mrad</span>
+                        </div>
+                    </div>
+
+                    <div class="p-3 bg-blue-950/30 border border-blue-800/40 rounded-lg text-blue-200 leading-relaxed text-[11px]">
+                        <i class="fa-solid fa-circle-info text-cern-cyan mr-1"></i>
+                        The phase space area remains invariant along the beamline according to <strong>Liouville's Theorem</strong>. Quadrupoles squeeze position divergence while expanding coordinate offset.
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- OVERLAY MODAL 2: TRANSFER MATRIX DETAILED VIEW -->
+        <div id="matrix-modal" class="absolute inset-x-4 top-20 bottom-8 z-20 bg-cern-card/95 backdrop-blur-md rounded-2xl border border-cern-border p-6 shadow-2xl flex flex-col hidden transition-all duration-300">
+            <div class="flex justify-between items-center mb-4 border-b border-cern-border pb-3">
+                <div class="flex items-center space-x-3">
+                    <i class="fa-solid fa-square-root-variable text-purple-400 text-xl"></i>
+                    <div>
+                        <h2 class="text-base font-bold text-white">Full FODO Cell Optics Transfer Matrices</h2>
+                        <p class="text-xs text-gray-400">Mathematical 2x2 Matrix Multiplication Chain: M<sub>Cell</sub> = M<sub>QF/2</sub> &middot; M<sub>Drift</sub> &middot; M<sub>QD</sub> &middot; M<sub>Drift</sub> &middot; M<sub>QF/2</sub></p>
+                    </div>
+                </div>
+                <button id="close-matrix-modal" class="text-gray-400 hover:text-white p-2 rounded-lg bg-gray-800/60">
+                    <i class="fa-solid fa-xmark text-lg"></i>
+                </button>
+            </div>
+
+            <div class="flex-1 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 overflow-y-auto p-2">
+                
+                <!-- Full Cell Matrix -->
+                <div class="bg-cern-dark p-5 rounded-xl border border-cern-cyan/40 glow-box-cyan flex flex-col justify-between">
+                    <div>
+                        <span class="text-xs font-bold text-cern-cyan uppercase tracking-wider">Composite FODO Cell Matrix M<sub>cell</sub></span>
+                        <div class="my-4 font-mono text-center text-lg text-white bg-black/50 p-4 rounded-xl border border-gray-800 flex items-center justify-center space-x-4">
+                            <span class="text-3xl text-gray-600 font-light">[</span>
+                            <div class="grid grid-cols-2 gap-x-6 gap-y-2">
+                                <span id="m-00" class="text-cern-cyan font-bold">1.000</span>
+                                <span id="m-01" class="text-cern-cyan font-bold">2.400</span>
+                                <span id="m-10" class="text-cern-cyan font-bold">-0.350</span>
+                                <span id="m-11" class="text-cern-cyan font-bold">0.250</span>
+                            </div>
+                            <span class="text-3xl text-gray-600 font-light">]</span>
+                        </div>
+                    </div>
+                    <div class="text-[11px] text-gray-400">
+                        Determinant: <span id="m-det" class="font-mono text-emerald-400">1.0000</span> (Symplectic mapping)
+                    </div>
+                </div>
+
+                <!-- Quad Focusing Half Matrix -->
+                <div class="bg-cern-dark p-5 rounded-xl border border-cern-border flex flex-col justify-between">
+                    <div>
+                        <span class="text-xs font-bold text-blue-400 uppercase tracking-wider">Focusing Half-Quad M<sub>QF/2</sub></span>
+                        <div class="my-4 font-mono text-center text-base text-gray-300 bg-black/40 p-4 rounded-xl border border-gray-800 flex items-center justify-center space-x-4">
+                            <span class="text-2xl text-gray-600 font-light">[</span>
+                            <div class="grid grid-cols-2 gap-x-4 gap-y-2">
+                                <span>1.000</span>
+                                <span>0.000</span>
+                                <span id="mqf-val" class="text-blue-400">-0.200</span>
+                                <span>1.000</span>
+                            </div>
+                            <span class="text-2xl text-gray-600 font-light">]</span>
+                        </div>
+                    </div>
+                    <div class="text-[11px] text-gray-500">Thin-lens focal length = 2f</div>
+                </div>
+
+                <!-- Quad Defocusing Matrix -->
+                <div class="bg-cern-dark p-5 rounded-xl border border-cern-border flex flex-col justify-between">
+                    <div>
+                        <span class="text-xs font-bold text-red-400 uppercase tracking-wider">Defocusing Quad M<sub>QD</sub></span>
+                        <div class="my-4 font-mono text-center text-base text-gray-300 bg-black/40 p-4 rounded-xl border border-gray-800 flex items-center justify-center space-x-4">
+                            <span class="text-2xl text-gray-600 font-light">[</span>
+                            <div class="grid grid-cols-2 gap-x-4 gap-y-2">
+                                <span>1.000</span>
+                                <span>0.000</span>
+                                <span id="mqd-val" class="text-red-400">+0.400</span>
+                                <span>1.000</span>
+                            </div>
+                            <span class="text-2xl text-gray-600 font-light">]</span>
+                        </div>
+                    </div>
+                    <div class="text-[11px] text-gray-500">Thin-lens focal length = -f</div>
+                </div>
+
+            </div>
+        </div>
+
+        <!-- BOTTOM LEGEND OVERLAY -->
+        <div class="absolute bottom-4 left-4 right-4 z-10 pointer-events-none flex items-center justify-between">
+            <div class="flex items-center space-x-4 bg-cern-card/90 backdrop-blur-md px-3 py-2 rounded-xl border border-cern-border shadow-lg text-xs pointer-events-auto">
+                <div class="flex items-center space-x-1.5">
+                    <span class="w-3 h-3 rounded bg-cyan-500 shadow-sm shadow-cyan-500/50"></span>
+                    <span class="text-gray-300">Focusing Quad (QF)</span>
+                </div>
+                <div class="flex items-center space-x-1.5">
+                    <span class="w-3 h-3 rounded bg-red-500 shadow-sm shadow-red-500/50"></span>
+                    <span class="text-gray-300">Defocusing Quad (QD)</span>
+                </div>
+                <div class="flex items-center space-x-1.5">
+                    <span class="w-3 h-3 rounded bg-amber-400"></span>
+                    <span class="text-gray-300">Particle Rays</span>
+                </div>
+            </div>
+
+            <div class="text-xs text-gray-400 bg-cern-card/90 backdrop-blur-md px-3 py-2 rounded-xl border border-cern-border shadow-lg">
+                <i class="fa-solid fa-computer-mouse text-cern-cyan mr-1.5"></i>
+                <span>Left-Click Drag: Rotate | Right-Click Drag: Pan | Scroll: Zoom</span>
+            </div>
+        </div>
+
+    </div>
+
+    <!-- MAIN SIMULATION LOGIC SCRIPT -->
+    <script>
+        // ==========================================
+        // 1. STATE & PHYSICS PARAMETERS
+        // ==========================================
+        const state = {
+            f: 2.5,          // Quadrupole Focal Length (m)
+            L: 1.2,          // Drift space length (m)
+            pRatio: 1.0,     // Momentum rigidity scaling
+            emittance: 12,   // Beam emittance / spread parameter
+            numRays: 24,     // Number of tracked particle trajectories
+            numCells: 8,      // Number of repetitive FODO cells displayed
+            showPipe: true,
+            showEnvelope: true,
+            showFields: true,
+            animatePulses: true,
+            isPaused: false,
+            time: 0
+        };
+
+        // Transfer matrix computation storage
+        let matrixCell = [[1, 0], [0, 1]];
+        let isStable = true;
+        let traceValue = 0;
+
+        // ==========================================
+        // 2. THREE.JS SCENE & GRAPHICS SETUP
+        // ==========================================
+        const container = document.getElementById('canvas-container');
+        const scene = new THREE.Scene();
+        scene.background = new THREE.Color(0x0b0f19);
+        scene.fog = new THREE.FogExp2(0x0b0f19, 0.015);
+
+        const camera = new THREE.PerspectiveCamera(45, container.clientWidth / container.clientHeight, 0.1, 1000);
+        camera.position.set(12, 10, 20);
+
+        const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false });
+        renderer.setSize(container.clientWidth, container.clientHeight);
+        renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+        renderer.shadowMap.enabled = true;
+        renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+        container.appendChild(renderer.domElement);
+
+        const controls = new THREE.OrbitControls(camera, renderer.domElement);
+        controls.enableDamping = true;
+        controls.dampingFactor = 0.05;
+        controls.target.set(0, 0, 20);
+
+        // Lighting
+        const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
+        scene.add(ambientLight);
+
+        const dirLight = new THREE.DirectionalLight(0xffffff, 1.2);
+        dirLight.position.set(20, 40, 20);
+        dirLight.castShadow = true;
+        dirLight.shadow.mapSize.width = 2048;
+        dirLight.shadow.mapSize.height = 2048;
+        scene.add(dirLight);
+
+        const blueLight = new THREE.PointLight(0x00d2ff, 1.5, 30);
+        blueLight.position.set(0, 5, 10);
+        scene.add(blueLight);
+
+        // Container groups for modular 3D re-rendering
+        const beamlineGroup = new THREE.Group();
+        const raysGroup = new THREE.Group();
+        const particlesGroup = new THREE.Group();
+        const envelopeGroup = new THREE.Group();
+        scene.add(beamlineGroup);
+        scene.add(raysGroup);
+        scene.add(particlesGroup);
+        scene.add(envelopeGroup);
+
+        // Grid helper along beam line
+        const gridHelper = new THREE.GridHelper(200, 100, 0x1f2d4d, 0x131b2e);
+        gridHelper.position.set(0, -3, 50);
+        scene.add(gridHelper);
+
+        // ==========================================
+        // 3. MATRIX OPTICS COMPUTATION ENGINE
+        // ==========================================
+
+        function getDriftMatrix(L) {
+            return [[1, L], [0, 1]];
+        }
+
+        function getFocusingMatrix(f) {
+            return [[1, 0], [-1 / f, 1]];
+        }
+
+        function getDefocusingMatrix(f) {
+            return [[1, 0], [1 / f, 1]];
+        }
+
+        function multiplyMatrices(A, B) {
+            return [
+                [A[0][0]*B[0][0] + A[0][1]*B[1][0], A[0][0]*B[0][1] + A[0][1]*B[1][1]],
+                [A[1][0]*B[0][0] + A[1][1]*B[1][0], A[1][0]*B[0][1] + A[1][1]*B[1][1]]
+            ];
+        }
+
+        function computeFODOMatrices() {
+            // Effective focal length modified by beam momentum rigidity
+            const eff_f = state.f * state.pRatio;
+            const L = state.L;
+
+            const MQF_half = getFocusingMatrix(2 * eff_f);
+            const MD = getDriftMatrix(L);
+            const MQD = getDefocusingMatrix(eff_f);
+
+            // M_cell = (QF/2) * Drift * QD * Drift * (QF/2)
+            let M = multiplyMatrices(MQF_half, MD);
+            M = multiplyMatrices(M, MQD);
+            M = multiplyMatrices(M, MD);
+            M = multiplyMatrices(M, MQF_half);
+
+            matrixCell = M;
+            traceValue = M[0][0] + M[1][1];
+            isStable = Math.abs(traceValue) < 2.0;
+
+            updateAnalyticsUI(eff_f, L);
+        }
+
+        function updateAnalyticsUI(eff_f, L) {
+            document.getElementById('matrix-trace-val').innerText = traceValue.toFixed(3);
+            
+            const badge = document.getElementById('stability-badge');
+            if (isStable) {
+                badge.className = "px-2.5 py-0.5 text-xs font-bold rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/40 flex items-center gap-1.5";
+                badge.innerHTML = `<span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span> STABLE`;
+                
+                const phaseAdvance = Math.acos(traceValue / 2.0) * (180 / Math.PI);
+                document.getElementById('phase-advance-val').innerText = phaseAdvance.toFixed(1) + "°";
+            } else {
+                badge.className = "px-2.5 py-0.5 text-xs font-bold rounded-full bg-red-500/20 text-red-400 border border-red-500/40 flex items-center gap-1.5";
+                badge.innerHTML = `<span class="w-2 h-2 rounded-full bg-red-400 animate-ping"></span> UNSTABLE`;
+                document.getElementById('phase-advance-val').innerText = "N/A (Divergent)";
+            }
+
+            // Update detailed matrix UI
+            document.getElementById('m-00').innerText = matrixCell[0][0].toFixed(3);
+            document.getElementById('m-01').innerText = matrixCell[0][1].toFixed(3);
+            document.getElementById('m-10').innerText = matrixCell[1][0].toFixed(3);
+            document.getElementById('m-11').innerText = matrixCell[1][1].toFixed(3);
+            document.getElementById('m-det').innerText = (matrixCell[0][0]*matrixCell[1][1] - matrixCell[0][1]*matrixCell[1][0]).toFixed(4);
+
+            document.getElementById('mqf-val').innerText = (-1 / (2 * eff_f)).toFixed(3);
+            document.getElementById('mqd-val').innerText = (+1 / eff_f).toFixed(3);
+
+            // Twiss parameters (Courant-Snyder) at center of QF
+            if (isStable) {
+                const beta = Math.abs(matrixCell[0][1]) / Math.sin(Math.acos(traceValue / 2.0));
+                const alpha = (matrixCell[0][0] - matrixCell[1][1]) / (2 * Math.sin(Math.acos(traceValue / 2.0)));
+                const gamma = (1 + alpha*alpha) / beta;
+
+                document.getElementById('twiss-beta').innerText = beta.toFixed(2) + " m/rad";
+                document.getElementById('twiss-alpha').innerText = alpha.toFixed(2);
+                document.getElementById('twiss-gamma').innerText = gamma.toFixed(2) + " rad/m";
+                document.getElementById('twiss-emit').innerText = state.emittance.toFixed(1) + " π·mm·mrad";
+            }
+        }
+
+        // ==========================================
+        // 4. 3D BEAMLINE GEOMETRY BUILDER
+        // ==========================================
+
+        function build3DBeamline() {
+            // Clear existing geometries
+            while(beamlineGroup.children.length > 0){ 
+                const obj = beamlineGroup.children.pop();
+                if (obj.geometry) obj.geometry.dispose();
+            }
+
+            const L = state.L;
+            const cellLength = 2 * L;
+            const numCells = state.numCells;
+            const quadLength = 0.4;
+            const quadRadius = 1.2;
+            const pipeRadius = 0.85;
+
+            // Materials
+            const matQF = new THREE.MeshStandardMaterial({
+                color: 0x00d2ff,
+                metalness: 0.7,
+                roughness: 0.2,
+                emissive: 0x004466,
+                emissiveIntensity: 0.3
+            });
+
+            const matQD = new THREE.MeshStandardMaterial({
+                color: 0xff4b4b,
+                metalness: 0.7,
+                roughness: 0.2,
+                emissive: 0x661111,
+                emissiveIntensity: 0.3
+            });
+
+            const matYoke = new THREE.MeshStandardMaterial({ color: 0x2a3752, metalness: 0.8, roughness: 0.3 });
+            const matPipe = new THREE.MeshPhysicalMaterial({
+                color: 0x64748b,
+                transparent: true,
+                opacity: 0.15,
+                roughness: 0.1,
+                transmission: 0.9,
+                thickness: 0.5
+            });
+
+            let currentZ = 0;
+
+            for (let c = 0; c < numCells; c++) {
+                // 1. QF/2 (Focusing Half Quad)
+                addQuadrupole3D(currentZ, quadLength / 2, matQF, matYoke, "QF");
+                
+                // 2. Drift Space 1
+                currentZ += L;
+
+                // 3. QD (Defocusing Full Quad)
+                addQuadrupole3D(currentZ, quadLength, matQD, matYoke, "QD");
+
+                // 4. Drift Space 2
+                currentZ += L;
+
+                // 5. QF/2 (Focusing Half Quad)
+                addQuadrupole3D(currentZ, quadLength / 2, matQF, matYoke, "QF");
+            }
+
+            // Beam Pipe Vacuum Shell
+            if (state.showPipe) {
+                const pipeGeo = new THREE.CylinderGeometry(pipeRadius, pipeRadius, currentZ, 32, 1, true);
+                pipeGeo.rotateX(Math.PI / 2);
+                pipeGeo.translate(0, 0, currentZ / 2);
+                const pipeMesh = new THREE.Mesh(pipeGeo, matPipe);
+                beamlineGroup.add(pipeMesh);
+            }
+        }
+
+        function addQuadrupole3D(zPos, length, matPole, matYoke, type) {
+            const quadGroup = new THREE.Group();
+            quadGroup.position.z = zPos;
+
+            // Outer Steel Yoke (Square frame with bevels)
+            const yokeGeo = new THREE.BoxGeometry(2.4, 2.4, length);
+            const yokeMesh = new THREE.Mesh(yokeGeo, matYoke);
+            quadGroup.add(yokeMesh);
+
+            // 4 Electromagnetic Pole Tip Hyperbolas
+            const poleGeo = new THREE.CylinderGeometry(0.3, 0.5, length, 16);
+            poleGeo.rotateX(Math.PI / 2);
+
+            const offsets = [
+                {x: 0.7, y: 0}, {x: -0.7, y: 0},
+                {x: 0, y: 0.7}, {x: 0, y: -0.7}
+            ];
+
+            offsets.forEach(off => {
+                const pole = new THREE.Mesh(poleGeo, matPole);
+                pole.position.set(off.x, off.y, 0);
+                quadGroup.add(pole);
+            });
+
+            // Optional B-Field Vector Visualizers
+            if (state.showFields) {
+                const fieldGeo = new THREE.BufferGeometry();
+                const fieldMat = new THREE.LineBasicMaterial({ color: type === "QF" ? 0x00ffff : 0xff6666, transparent: true, opacity: 0.6 });
+                const points = [];
+
+                for (let a = 0; a < Math.PI * 2; a += Math.PI / 4) {
+                    const rx = Math.cos(a) * 0.6;
+                    const ry = Math.sin(a) * 0.6;
+                    points.push(new THREE.Vector3(0, 0, 0));
+                    points.push(new THREE.Vector3(type === "QF" ? -ry : ry, type === "QF" ? rx : -rx, 0));
+                }
+                fieldGeo.setFromPoints(points);
+                const fieldLines = new THREE.LineSegments(fieldGeo, fieldMat);
+                quadGroup.add(fieldLines);
+            }
+
+            beamlineGroup.add(quadGroup);
+        }
+
+        // ==========================================
+        // 5. PARTICLE BEAM TRAJECTORY CALCULATOR
+        // ==========================================
+
+        let particleRays = [];
+
+        function calculateTrajectories() {
+            // Clear previous ray visuals
+            while(raysGroup.children.length > 0){ 
+                const obj = raysGroup.children.pop();
+                if (obj.geometry) obj.geometry.dispose();
+            }
+
+            const eff_f = state.f * state.pRatio;
+            const L = state.L;
+            const numCells = state.numCells;
+            const cellLength = 2 * L;
+
+            const MQF_half = getFocusingMatrix(2 * eff_f);
+            const MD = getDriftMatrix(L);
+            const MQD = getDefocusingMatrix(eff_f);
+
+            // Matrices for X (Horizontal) and Y (Vertical) - Quad focuses in X, defocuses in Y
+            const MQF_half_Y = getDefocusingMatrix(2 * eff_f);
+            const MQD_Y = getFocusingMatrix(eff_f);
+
+            particleRays = [];
+            const emittanceScale = (state.emittance / 10000);
+
+            // Generate initial particle beam envelope distribution
+            for (let i = 0; i < state.numRays; i++) {
+                const angle = (i / state.numRays) * Math.PI * 2;
+                const r = Math.sqrt((i + 1) / state.numRays) * emittanceScale;
+                
+                // Initial particle vectors: [position, divergence]
+                let vecX = [r * Math.cos(angle), (r * 0.5) * Math.sin(angle)];
+                let vecY = [r * Math.sin(angle), (r * 0.5) * Math.cos(angle)];
+
+                const points = [];
+                let currentZ = 0;
+                points.push(new THREE.Vector3(vecX[0], vecY[0], currentZ));
+
+                for (let c = 0; c < numCells; c++) {
+                    // 1. QF/2
+                    vecX = propagate(vecX, MQF_half);
+                    vecY = propagate(vecY, MQF_half_Y);
+                    points.push(new THREE.Vector3(vecX[0], vecY[0], currentZ));
+
+                    // 2. Drift 1
+                    vecX = propagate(vecX, MD);
+                    vecY = propagate(vecY, MD);
+                    currentZ += L;
+                    points.push(new THREE.Vector3(vecX[0], vecY[0], currentZ));
+
+                    // 3. QD
+                    vecX = propagate(vecX, MQD);
+                    vecY = propagate(vecY, MQD_Y);
+                    points.push(new THREE.Vector3(vecX[0], vecY[0], currentZ));
+
+                    // 4. Drift 2
+                    vecX = propagate(vecX, MD);
+                    vecY = propagate(vecY, MD);
+                    currentZ += L;
+                    points.push(new THREE.Vector3(vecX[0], vecY[0], currentZ));
+
+                    // 5. QF/2
+                    vecX = propagate(vecX, MQF_half);
+                    vecY = propagate(vecY, MQF_half_Y);
+                    points.push(new THREE.Vector3(vecX[0], vecY[0], currentZ));
+                }
+
+                particleRays.push(points);
+
+                // Render 3D Ray Curve
+                const curve = new THREE.CatmullRomCurve3(points);
+                const rayGeo = new THREE.TubeGeometry(curve, 120, 0.012, 6, false);
+                const rayMat = new THREE.MeshBasicMaterial({
+                    color: isStable ? 0xf59e0b : 0xef4444,
+                    transparent: true,
+                    opacity: 0.75
+                });
+                const rayMesh = new THREE.Mesh(rayGeo, rayMat);
+                raysGroup.add(rayMesh);
+            }
+
+            buildParticlePulseSprites();
+        }
+
+        function propagate(vec, M) {
+            return [
+                M[0][0] * vec[0] + M[0][1] * vec[1],
+                M[1][0] * vec[0] + M[1][1] * vec[1]
+            ];
+        }
+
+        // Animated glowing particle pulses traveling along trajectories
+        const pulseSprites = [];
+
+        function buildParticlePulseSprites() {
+            while(particlesGroup.children.length > 0){ 
+                particlesGroup.children.pop();
+            }
+            pulseSprites.length = 0;
+
+            const spriteMap = new THREE.TextureLoader().load('https://threejs.org/examples/textures/sprites/glow.png');
+            const spriteMat = new THREE.SpriteMaterial({ map: spriteMap, color: 0x00d2ff, transparent: true, opacity: 0.9, blending: THREE.AdditiveBlending });
+
+            particleRays.forEach(points => {
+                if(points.length < 2) return;
+                const sprite = new THREE.Sprite(spriteMat);
+                sprite.scale.set(0.25, 0.25, 1.0);
+                sprite.userData = { points: points, progress: Math.random() };
+                particlesGroup.add(sprite);
+                pulseSprites.push(sprite);
+            });
+        }
+
+        // ==========================================
+        // 6. PHASE SPACE CHART.JS INTEGRATION
+        // ==========================================
+
+        let phaseChart = null;
+
+        function initPhaseSpaceChart() {
+            const ctx = document.getElementById('phaseSpaceChart').getContext('2d');
+            phaseChart = new Chart(ctx, {
+                type: 'scatter',
+                data: {
+                    datasets: [{
+                        label: 'Particle Coordinates (x vs x\')',
+                        data: [],
+                        backgroundColor: '#00d2ff',
+                        borderColor: '#00539C',
+                        pointRadius: 5,
+                        pointHoverRadius: 8
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: {
+                        x: {
+                            title: { display: true, text: 'Transverse Position x (mm)', color: '#94a3b8' },
+                            grid: { color: '#1f2d4d' },
+                            ticks: { color: '#94a3b8' }
+                        },
+                        y: {
+                            title: { display: true, text: 'Divergence Angle x\' (mrad)', color: '#94a3b8' },
+                            grid: { color: '#1f2d4d' },
+                            ticks: { color: '#94a3b8' }
+                        }
+                    },
+                    plugins: {
+                        legend: { labels: { color: '#e2e8f0' } }
+                    }
+                }
+            });
+        }
+
+        function updatePhaseSpaceChartData() {
+            if (!phaseChart) return;
+
+            const scatterData = [];
+            const emittanceScale = (state.emittance / 10000);
+
+            for (let i = 0; i < 40; i++) {
+                const angle = (i / 40) * Math.PI * 2;
+                const x = emittanceScale * Math.cos(angle) * 1000; // to mm
+                const xp = (emittanceScale * 0.5) * Math.sin(angle) * 1000; // to mrad
+                scatterData.push({ x: x, y: xp });
+            }
+
+            phaseChart.data.datasets[0].data = scatterData;
+            phaseChart.data.datasets[0].backgroundColor = isStable ? '#00d2ff' : '#ff4b4b';
+            phaseChart.update();
+        }
+
+        // ==========================================
+        // 7. EVENT LISTENERS & INTERACTION
+        // ==========================================
+
+        function setupUIListeners() {
+            // Sliders
+            const bindSlider = (id, stateProp, valId, unit, transform = v => v) => {
+                const slider = document.getElementById(id);
+                slider.addEventListener('input', (e) => {
+                    const val = parseFloat(e.target.value);
+                    state[stateProp] = transform(val);
+                    document.getElementById(valId).innerText = val.toFixed(2) + " " + unit;
+                    recalculateAll();
+                });
+            };
+
+            bindSlider('slider-f', 'f', 'val-f', 'm');
+            bindSlider('slider-L', 'L', 'val-L', 'm');
+            bindSlider('slider-p', 'pRatio', 'val-p', '');
+            bindSlider('slider-emit', 'emittance', 'val-emit', 'π·mm·mrad');
+            bindSlider('slider-rays', 'numRays', 'val-rays', '', v => parseInt(v));
+
+            // Checkboxes
+            document.getElementById('chk-pipe').addEventListener('change', e => { state.showPipe = e.target.checked; build3DBeamline(); });
+            document.getElementById('chk-quad-fields').addEventListener('change', e => { state.showFields = e.target.checked; build3DBeamline(); });
+            document.getElementById('chk-anim').addEventListener('change', e => { state.animatePulses = e.target.checked; particlesGroup.visible = state.animatePulses; });
+
+            // Buttons
+            document.getElementById('btn-play').addEventListener('click', () => {
+                state.isPaused = !state.isPaused;
+                document.getElementById('play-icon').className = state.isPaused ? "fa-solid fa-play" : "fa-solid fa-pause";
+                document.getElementById('play-text').innerText = state.isPaused ? "Resume Animation" : "Pause Animation";
+            });
+
+            document.getElementById('btn-reset').addEventListener('click', () => {
+                state.f = 2.5;
+                state.L = 1.2;
+                state.pRatio = 1.0;
+                state.emittance = 12;
+                state.numRays = 24;
+
+                document.getElementById('slider-f').value = 2.5;
+                document.getElementById('val-f').innerText = "2.50 m";
+                document.getElementById('slider-L').value = 1.2;
+                document.getElementById('val-L').innerText = "1.20 m";
+                document.getElementById('slider-p').value = 1.0;
+                document.getElementById('val-p').innerText = "1.00";
+                document.getElementById('slider-emit').value = 12;
+                document.getElementById('val-emit').innerText = "12 π·mm·mrad";
+
+                recalculateAll();
+            });
+
+            // Camera Presets
+            document.getElementById('cam-iso').addEventListener('click', () => setCameraView(12, 10, 20, 0, 0, 20));
+            document.getElementById('cam-side').addEventListener('click', () => setCameraView(25, 0, 20, 0, 0, 20));
+            document.getElementById('cam-top').addEventListener('click', () => setCameraView(0, 30, 20, 0, 0, 20));
+            document.getElementById('cam-front').addEventListener('click', () => setCameraView(0, 0, -5, 0, 0, 5));
+
+            // Modals & Tabs
+            const modalPhase = document.getElementById('phase-space-modal');
+            const modalMatrix = document.getElementById('matrix-modal');
+
+            document.getElementById('tab-3d').addEventListener('click', () => {
+                modalPhase.classList.add('hidden');
+                modalMatrix.classList.add('hidden');
+                setTabActive('tab-3d');
+            });
+
+            document.getElementById('tab-phase').addEventListener('click', () => {
+                modalPhase.classList.remove('hidden');
+                modalMatrix.classList.add('hidden');
+                setTabActive('tab-phase');
+                updatePhaseSpaceChartData();
+            });
+
+            document.getElementById('tab-matrix').addEventListener('click', () => {
+                modalMatrix.classList.remove('hidden');
+                modalPhase.classList.add('hidden');
+                setTabActive('tab-matrix');
+            });
+
+            document.getElementById('close-phase-modal').addEventListener('click', () => modalPhase.classList.add('hidden'));
+            document.getElementById('close-matrix-modal').addEventListener('click', () => modalMatrix.classList.add('hidden'));
+
+            // Window Resize
+            window.addEventListener('resize', onWindowResize);
+        }
+
+        function setTabActive(activeId) {
+            ['tab-3d', 'tab-phase', 'tab-matrix'].forEach(id => {
+                const btn = document.getElementById(id);
+                if (id === activeId) {
+                    btn.className = "px-3.5 py-1.5 rounded-lg text-xs font-semibold bg-cern-cyan/20 text-cern-cyan border border-cern-cyan/40 shadow-sm flex items-center space-x-1.5 transition";
+                } else {
+                    btn.className = "px-3.5 py-1.5 rounded-lg text-xs font-semibold text-gray-400 hover:text-white flex items-center space-x-1.5 transition";
+                }
+            });
+        }
+
+        function setCameraView(x, y, z, tx, ty, tz) {
+            camera.position.set(x, y, z);
+            controls.target.set(tx, ty, tz);
+            controls.update();
+        }
+
+        function recalculateAll() {
+            computeFODOMatrices();
+            build3DBeamline();
+            calculateTrajectories();
+            updatePhaseSpaceChartData();
+        }
+
+        function onWindowResize() {
+            camera.aspect = container.clientWidth / container.clientHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(container.clientWidth, container.clientHeight);
+        }
+
+        // ==========================================
+        // 8. ANIMATION LOOP
+        // ==========================================
+
+        function animate() {
+            requestAnimationFrame(animate);
+
+            if (!state.isPaused) {
+                state.time += 0.015;
+
+                // Move beam pulse sprites along path
+                pulseSprites.forEach(sprite => {
+                    const points = sprite.userData.points;
+                    if (!points || points.length < 2) return;
+
+                    sprite.userData.progress += 0.008;
+                    if (sprite.userData.progress > 1.0) sprite.userData.progress = 0;
+
+                    const idx = Math.floor(sprite.userData.progress * (points.length - 1));
+                    const nextIdx = Math.min(idx + 1, points.length - 1);
+                    const subProgress = (sprite.userData.progress * (points.length - 1)) - idx;
+
+                    sprite.position.lerpVectors(points[idx], points[nextIdx], subProgress);
+                });
+            }
+
+            controls.update();
+            renderer.render(scene, camera);
+        }
+
+        // Initialize App
+        window.onload = () => {
+            initPhaseSpaceChart();
+            setupUIListeners();
+            recalculateAll();
+            animate();
+        };
+
+    </script>
+</body>
+</html>
